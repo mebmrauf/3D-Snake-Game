@@ -92,8 +92,12 @@ This project is ideal if you're looking to:
 
 ## 📸 Screenshots
 
-> *(Add screenshots or gameplay gifs here)*
-> Use tools like `snipping tool` or `OBS` to record frames and drop them in the repo.
+![1.png](screenshot/1.png)
+![2.png](screenshot/2.png)
+![3.png](screenshot/3.png)
+![4.png](screenshot/4.png)
+![5.png](screenshot/5.png)
+![6.png](screenshot/6.png)
 
 ---
 
