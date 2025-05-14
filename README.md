@@ -79,6 +79,13 @@ The game loop is tied to GLUT's `idle` function, which handles:
 
 ---
 
+## 🧩 Known Limitations
+
+* Snake direction is dependent on camera angle — ensure it's aligned to 0°, 90°, 180°, or 270° for accurate movement.
+* Performance may vary depending on GPU and OpenGL support.
+
+---
+
 ## 📚 Learning Opportunities
 
 This project is ideal if you're looking to:
