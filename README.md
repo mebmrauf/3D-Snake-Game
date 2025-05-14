@@ -1,6 +1,6 @@
 # 🐍 3D Snake Game
 
-A modern take on the classic Snake game—reimagined in 3D using Python and OpenGL. This game includes immersive visuals, multiple camera modes (including first-person), dynamic difficulty settings, obstacles, bombs, and special effects, all packed into a single Python file.
+A modern take on the classic Snake game - reimagined in 3D using Python and OpenGL. This game includes immersive visuals, multiple camera modes (including first-person), dynamic difficulty settings, obstacles, bombs, and special effects, all packed into a single Python file.
 
 ---
 
