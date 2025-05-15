@@ -110,8 +110,8 @@ This project is ideal if you're looking to:
 
 ## 👥 Contributors
 
-- **B M Rauf**
-- **Shahed Ahmed**
+- [**B M Rauf**](https://www.github.com/mebmrauf)
+- [**Shahed Ahmed**](https://www.github.com/shahedahmed0)
 - **Sadman Sakib**
 
 ---
