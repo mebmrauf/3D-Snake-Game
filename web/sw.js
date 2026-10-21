@@ -1,6 +1,6 @@
 // Caches the game so it opens and plays offline after the first visit.
 // Bump the version whenever game files change, so players get the update.
-const CACHE_NAME = "snake3d-v2";
+const CACHE_NAME = "snake3d-v3";
 const APP_FILES = [
   "./",
   "index.html",

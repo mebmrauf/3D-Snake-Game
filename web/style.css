@@ -532,6 +532,30 @@ h2 {
   to { transform: scale(1); opacity: 1; }
 }
 
+/* Wide screens: two columns of instructions so the whole menu fits without scrolling */
+@media (min-width: 820px) {
+  .dialog:not(.compact) {
+    width: min(780px, 100%);
+  }
+
+  .instructions {
+    columns: 2;
+    column-gap: 32px;
+  }
+
+  .instructions li {
+    break-inside: avoid;
+  }
+
+  .difficulties,
+  #startButton,
+  .daily {
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 @media (max-width: 520px) {
   .dialog {
     padding: 20px 18px 22px;

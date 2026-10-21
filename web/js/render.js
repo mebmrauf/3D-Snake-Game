@@ -167,7 +167,8 @@ export class Renderer {
   addStars() {
     const positions = [];
     for (let i = 0; i < 700; i++) {
-      const direction = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.9 + 0.05, Math.random() - 0.5).normalize();
+      // Stars fill below the horizon too: the camera looks down, so most visible sky is there
+      const direction = new THREE.Vector3(Math.random() - 0.5, Math.random() * 1.6 - 0.7, Math.random() - 0.5).normalize();
       positions.push(...direction.multiplyScalar(2000).toArray());
     }
     const geometry = new THREE.BufferGeometry();
