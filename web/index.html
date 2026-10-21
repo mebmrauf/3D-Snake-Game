@@ -37,6 +37,7 @@
   </div>
 
   <div class="toolbar">
+    <button id="accountButton" class="chip account-chip hidden" type="button"></button>
     <button id="languageButton" class="chip" type="button"></button>
     <button id="soundButton" class="icon-button" type="button">🔊</button>
     <button id="viewButton" class="icon-button hidden" type="button">👁</button>
@@ -75,6 +76,7 @@
         <span data-i18n="dailyChallenge"></span>
         <span id="dailyInfo" class="daily-info"></span>
       </button>
+      <button id="leaderboardButton" class="secondary leaderboard-button hidden" type="button" data-i18n="leaderboard"></button>
       <button id="vibrationButton" class="chip vibration hidden" type="button"></button>
     </div>
   </section>
@@ -86,10 +88,81 @@
       <p id="gameOverReason" class="subtitle"></p>
       <p id="finalScore" class="final-score"></p>
       <p id="gameOverBest" class="muted"></p>
+      <button id="signInToSave" class="secondary sign-in-to-save hidden" type="button" data-i18n="signInToSave"></button>
+      <p id="submitStatus" class="submit-status hidden" role="status"></p>
+      <div id="gameOverTop" class="top-scores hidden">
+        <h2 data-i18n="topScores"></h2>
+        <p id="gameOverTopStatus" class="muted small"></p>
+        <ol id="gameOverTopList" class="top-list"></ol>
+      </div>
       <div class="actions">
         <button id="playAgainButton" class="primary" type="button" data-i18n="playAgain"></button>
         <button id="menuButton" class="secondary" type="button" data-i18n="menu"></button>
       </div>
+    </div>
+  </section>
+
+  <section id="leaderboardScreen" class="overlay hidden" aria-labelledby="leaderboardTitle">
+    <div class="panel dialog compact">
+      <h1 id="leaderboardTitle" data-i18n="leaderboardTitle"></h1>
+      <div class="board-tabs" role="tablist">
+        <button class="board-tab" type="button" role="tab" data-board="EASY" data-i18n="difficulty_EASY"></button>
+        <button class="board-tab" type="button" role="tab" data-board="MEDIUM" data-i18n="difficulty_MEDIUM"></button>
+        <button class="board-tab" type="button" role="tab" data-board="HARD" data-i18n="difficulty_HARD"></button>
+        <button class="board-tab" type="button" role="tab" data-board="DAILY" data-i18n="today"></button>
+      </div>
+      <p id="leaderboardStatus" class="muted"></p>
+      <ol id="leaderboardList" class="top-list"></ol>
+      <button id="leaderboardClose" class="secondary" type="button" data-i18n="close"></button>
+    </div>
+  </section>
+
+  <section id="accountScreen" class="overlay hidden" aria-labelledby="accountTitle">
+    <div class="panel dialog compact account-dialog">
+      <h1 id="accountTitle" data-i18n="account"></h1>
+
+      <div id="signedOut">
+        <div class="board-tabs two" role="tablist">
+          <button id="signInTab" class="board-tab selected" type="button" role="tab" data-i18n="signIn"></button>
+          <button id="signUpTab" class="board-tab" type="button" role="tab" data-i18n="signUp"></button>
+        </div>
+        <form id="authForm" class="auth-form">
+          <label id="nameField" class="field hidden">
+            <span data-i18n="displayName"></span>
+            <input id="authName" name="name" type="text" maxlength="16" autocomplete="nickname" spellcheck="false">
+          </label>
+          <label class="field">
+            <span data-i18n="email"></span>
+            <input id="authEmail" name="email" type="email" maxlength="254" autocomplete="email" required>
+          </label>
+          <label class="field">
+            <span data-i18n="password"></span>
+            <input id="authPassword" name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required>
+            <small id="passwordHint" class="muted hidden" data-i18n="passwordHint"></small>
+          </label>
+          <button id="authSubmit" class="primary" type="submit"></button>
+          <p id="authStatus" class="submit-status" role="status"></p>
+        </form>
+        <p class="muted small" data-i18n="accountNote"></p>
+      </div>
+
+      <div id="signedIn" class="hidden">
+        <p id="accountName" class="account-name"></p>
+        <div class="stats">
+          <div><strong id="statGames"></strong><span data-i18n="statsGames"></span></div>
+          <div><strong id="statApples"></strong><span data-i18n="statsApples"></span></div>
+          <div><strong id="statLevel"></strong><span data-i18n="statsLevel"></span></div>
+          <div><strong id="statStreak"></strong><span data-i18n="statsStreak"></span></div>
+        </div>
+        <h2 data-i18n="yourBests"></h2>
+        <ul id="accountBests" class="bests"></ul>
+        <h2 data-i18n="recentGames"></h2>
+        <p id="accountStatus" class="muted small"></p>
+        <ol id="accountHistory" class="history"></ol>
+        <button id="signOutButton" class="secondary" type="button" data-i18n="signOut"></button>
+      </div>
+
+      <button id="accountClose" class="secondary" type="button" data-i18n="close"></button>
     </div>
   </section>
 

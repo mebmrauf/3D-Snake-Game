@@ -416,6 +416,266 @@ h2 {
   color: var(--muted);
 }
 
+.leaderboard-button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* Online leaderboard */
+.submit-form {
+  margin-top: 18px;
+  text-align: left;
+}
+
+.submit-form label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.submit-row {
+  display: flex;
+  gap: 8px;
+}
+
+.submit-row input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 2px solid var(--panel-border);
+  font: inherit;
+  font-size: 17px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.submit-row input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.submit-row .primary {
+  min-height: 48px;
+  padding: 0 18px;
+}
+
+.submit-status {
+  margin: 10px 0 0;
+  font-weight: 600;
+}
+
+.submit-status.success {
+  color: var(--green-dark);
+}
+
+.submit-status.error {
+  color: var(--danger);
+}
+
+.top-scores h2 {
+  margin-top: 18px;
+}
+
+.top-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: rank;
+  text-align: left;
+}
+
+.top-list li {
+  counter-increment: rank;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+}
+
+.top-list li:nth-child(odd) {
+  background: rgba(31, 157, 85, 0.08);
+}
+
+.top-list li::before {
+  content: counter(rank);
+  min-width: 22px;
+  font-weight: 800;
+  color: var(--green-dark);
+}
+
+.top-list .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-list .points {
+  font-weight: 700;
+}
+
+.board-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 14px 0 10px;
+}
+
+.board-tab {
+  min-height: 42px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 2px solid var(--panel-border);
+  font-weight: 600;
+}
+
+.board-tab.selected {
+  background: var(--green);
+  border-color: var(--green-dark);
+  color: #fff;
+}
+
+#leaderboardClose,
+#accountClose {
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* Accounts */
+.account-chip {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.playing #accountButton {
+  display: none;
+}
+
+.sign-in-to-save {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.board-tabs.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.field input {
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 2px solid var(--panel-border);
+  font: inherit;
+  font-size: 17px;
+  color: var(--text);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.auth-form .primary {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.auth-form .submit-status {
+  min-height: 1.4em;
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.account-name {
+  margin: 4px 0 14px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 4px;
+  border-radius: 12px;
+  background: rgba(31, 157, 85, 0.1);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stats strong {
+  font-size: 20px;
+  color: var(--text);
+}
+
+.bests,
+.history {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.bests li,
+.history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+}
+
+.bests li:nth-child(odd),
+.history li:nth-child(odd) {
+  background: rgba(31, 157, 85, 0.08);
+}
+
+.history {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 14px;
+}
+
+#signOutButton {
+  width: 100%;
+  margin-top: 16px;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 .vibration {
   margin-top: 14px;
   height: 38px;

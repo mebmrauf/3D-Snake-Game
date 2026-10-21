@@ -1,0 +1,18 @@
+{
+  "name": "3d-snake-game",
+  "private": true,
+  "description": "3D Snake: a browser game with an online leaderboard",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/web/",
+    "db:setup": "node --env-file=.env scripts/setup-db.mjs",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.2.0"
+  }
+}

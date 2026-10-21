@@ -1,33 +1,43 @@
 // Game rules for 3D Snake. No rendering or browser code lives here, so the rules
-// can be tested on their own (see tests/web/logic.test.mjs).
+// can be tested on their own (see tests/web/logic.test.mjs) and the leaderboard
+// server can replay a game to check its score (see api/score.js).
+//
+// The game advances in fixed 1/60 s steps ("ticks") and keeps every timer as a whole
+// number of ticks, so the same seed and the same recorded inputs always produce
+// exactly the same game, in any browser and on the server.
 
 export const GRID_SIZE = 14;
-// Seconds per cell at the start, and the fastest the speed ramp goes
+export const TICKS_PER_SECOND = 60;
+// Ticks per cell at the start, and the fastest the speed ramp goes
 export const DIFFICULTIES = {
-  EASY: { secondsPerCell: 0.30, minSecondsPerCell: 0.20, obstacleGroups: 3, maxBombs: 1 },
-  MEDIUM: { secondsPerCell: 0.23, minSecondsPerCell: 0.15, obstacleGroups: 5, maxBombs: 2 },
-  HARD: { secondsPerCell: 0.16, minSecondsPerCell: 0.11, obstacleGroups: 8, maxBombs: 3 },
+  EASY: { ticksPerCell: 18, minTicksPerCell: 12, obstacleGroups: 3, maxBombs: 1 },
+  MEDIUM: { ticksPerCell: 14, minTicksPerCell: 9, obstacleGroups: 5, maxBombs: 2 },
+  HARD: { ticksPerCell: 10, minTicksPerCell: 7, obstacleGroups: 8, maxBombs: 3 },
 };
-export const COUNTDOWN_DURATION = 2.1;
-export const OBSTACLE_FADE_IN = 1.5;
+export const DAILY_DIFFICULTY = "MEDIUM";
+export const COUNTDOWN_STEP_TICKS = 42;
+export const COUNTDOWN_TICKS = COUNTDOWN_STEP_TICKS * 3;
+export const OBSTACLE_FADE_TICKS = 90;
 export const POINTS_PER_LEVEL = 10;
 export const POWER_UPS = ["star", "slow", "shrink", "ghost"];
-// Seconds each timed power-up lasts
-export const EFFECT_DURATIONS = { doublePoints: 10, slow: 8, ghost: 15 };
+// Ticks each timed power-up lasts
+export const EFFECT_TICKS = { doublePoints: 600, slow: 480, ghost: 900 };
+// Longest game the leaderboard server will replay (two hours of play)
+export const MAX_GAME_TICKS = 2 * 60 * 60 * TICKS_PER_SECOND;
 
-const SPEED_RAMP_PER_APPLE = 0.975;
+const TICK_SECONDS = 1 / TICKS_PER_SECOND;
+const MAX_STEPS_PER_UPDATE = 6;
+const APPLES_PER_SPEED_STEP = 3;
 const POWER_UP_WEIGHTS = { star: 3, slow: 2, shrink: 2, ghost: 2 };
 const APPLES_PER_POWER_UP = 5;
-const STAR_SPEED_MULTIPLIER = 0.8;
-const SLOW_SPEED_MULTIPLIER = 1.5;
 const SHRINK_SEGMENTS = 3;
 const BLOCKS_PER_GROUP = 5;
 const OBSTACLE_ATTEMPTS = 50;
 const MIN_SAFE_CELLS_AHEAD = 3;
-const SAFE_SECONDS_AHEAD = 0.8;
+const SAFE_TICKS_AHEAD = 48;
 const MAX_QUEUED_TURNS = 2;
-const BOMB_SPAWN_INTERVAL = 10;
-const BOMB_LIFETIME = 5;
+const BOMB_SPAWN_TICKS = 600;
+const BOMB_LIFETIME_TICKS = 300;
 const DANGER_DISTANCE = 3;
 // The opening layout keeps a longer clear lane so a new player isn't instantly boxed in
 const START_RUNWAY = 7;
@@ -38,6 +48,7 @@ const positionOf = (key) => [key % GRID_SIZE, Math.floor(key / GRID_SIZE)];
 const samePosition = (a, b) => Boolean(a && b) && a[0] === b[0] && a[1] === b[1];
 const wrap = (x, y) => [((x % GRID_SIZE) + GRID_SIZE) % GRID_SIZE, ((y % GRID_SIZE) + GRID_SIZE) % GRID_SIZE];
 const keysOf = (...lists) => new Set(lists.flat().map(keyOf));
+const isUnitStep = ([dx, dy]) => Number.isInteger(dx) && Number.isInteger(dy) && Math.abs(dx) + Math.abs(dy) === 1;
 
 function allCells() {
   const cells = [];
@@ -49,7 +60,7 @@ function allCells() {
   return cells;
 }
 
-// Repeatable random numbers (mulberry32), so a daily challenge is the same for everyone
+// Repeatable random numbers (mulberry32), so a seed always gives the same game
 export function seededRandom(seed) {
   let state = seed >>> 0;
   return () => {
@@ -119,25 +130,29 @@ export class Game {
     this.previousDirection = [1, 0];
     this.directionQueue = [];
     this.applesEaten = 0;
-    // Seconds left on each timed power-up; 0 means off
+    // Ticks left on each timed power-up; 0 means off
     this.effects = { doublePoints: 0, slow: 0, ghost: 0 };
-    this.secondsPerCell = this.settings.secondsPerCell;
+    this.ticksPerCell = this.settings.ticksPerCell;
     this.food = null;
     this.powerUp = null;
     this.foodCount = 0;
     this.bombs = [];
-    this.bombElapsed = 0;
+    this.bombTicks = 0;
     this.obstacles = [];
     this.pendingObstacles = [];
-    this.pendingElapsed = 0;
+    this.pendingTicks = 0;
     this.score = 0;
-    // The game clock only runs while playing, never while paused or counting down
-    this.clock = 0;
-    this.lastMoveTime = 0;
+    // Ticks run so far (only while playing), and ticks since the snake last moved
+    this.tick = 0;
+    this.moveTimer = 0;
+    // Real time not yet turned into ticks; only used to draw smooth movement
+    this.accumulator = 0;
     this.state = "PLAYING";
-    this.countdown = COUNTDOWN_DURATION;
+    this.countdown = COUNTDOWN_TICKS;
     this.endCause = null;
     this.events = [];
+    // Every input that changed the game, as [tick, dx, dy]; [tick, 0, 0] is a resume
+    this.inputs = [];
     this.generateObstacles(false);
     this.generateFood();
   }
@@ -148,6 +163,10 @@ export class Game {
 
   get level() {
     return 1 + Math.floor(this.score / POINTS_PER_LEVEL);
+  }
+
+  get secondsPerCell() {
+    return this.ticksPerCell / TICKS_PER_SECOND;
   }
 
   choose(list) {
@@ -164,23 +183,22 @@ export class Game {
     return events;
   }
 
-  // The speed ramps up a little with every apple, down to a floor per difficulty;
+  // The speed ramps up one step every few apples, down to a floor per difficulty;
   // the star speeds it up further and slow motion slows it down
   updateSpeed() {
-    const base = Math.max(this.settings.minSecondsPerCell, this.settings.secondsPerCell * SPEED_RAMP_PER_APPLE ** this.applesEaten);
-    let multiplier = 1;
+    let ticks = Math.max(this.settings.minTicksPerCell, this.settings.ticksPerCell - Math.floor(this.applesEaten / APPLES_PER_SPEED_STEP));
     if (this.effects.doublePoints > 0) {
-      multiplier *= STAR_SPEED_MULTIPLIER;
+      ticks = Math.round((ticks * 4) / 5);
     }
     if (this.effects.slow > 0) {
-      multiplier *= SLOW_SPEED_MULTIPLIER;
+      ticks = Math.round((ticks * 3) / 2);
     }
-    this.secondsPerCell = base * multiplier;
+    this.ticksPerCell = Math.max(3, ticks);
   }
 
   safeCellsAhead() {
     // Faster snakes get a longer clear runway so there is always time to react
-    return Math.max(MIN_SAFE_CELLS_AHEAD, Math.ceil(SAFE_SECONDS_AHEAD / this.secondsPerCell));
+    return Math.max(MIN_SAFE_CELLS_AHEAD, Math.ceil(SAFE_TICKS_AHEAD / this.ticksPerCell));
   }
 
   safeZone(cellsAhead = this.safeCellsAhead()) {
@@ -208,7 +226,7 @@ export class Game {
   // Turns are buffered and checked against the previous turn, so fast inputs
   // can never reverse the snake into its own body
   queueDirection(newDirection) {
-    if (this.state !== "PLAYING" || this.directionQueue.length >= MAX_QUEUED_TURNS) {
+    if (this.state !== "PLAYING" || this.directionQueue.length >= MAX_QUEUED_TURNS || !isUnitStep(newDirection)) {
       return false;
     }
     const [lastX, lastY] = this.lastQueuedDirection();
@@ -216,6 +234,7 @@ export class Game {
       return false;
     }
     this.directionQueue.push(newDirection);
+    this.inputs.push([this.tick, newDirection[0], newDirection[1]]);
     this.emit("turn");
     return true;
   }
@@ -314,7 +333,7 @@ export class Game {
       // The old layout disappears and the new one fades in, harmless until solid
       this.obstacles = [];
       this.pendingObstacles = positions;
-      this.pendingElapsed = 0;
+      this.pendingTicks = 0;
       this.emit("obstacles");
     } else {
       this.obstacles = positions;
@@ -322,12 +341,12 @@ export class Game {
     }
   }
 
-  updatePendingObstacles(deltaTime) {
+  updatePendingObstacles() {
     if (!this.pendingObstacles.length) {
       return;
     }
-    this.pendingElapsed += deltaTime;
-    if (this.pendingElapsed < OBSTACLE_FADE_IN) {
+    this.pendingTicks += 1;
+    if (this.pendingTicks < OBSTACLE_FADE_TICKS) {
       return;
     }
     // Blocks the snake is on, or about to reach, wait until it has passed
@@ -366,24 +385,24 @@ export class Game {
     }
   }
 
-  updateBombs(deltaTime) {
-    this.bombElapsed += deltaTime;
-    if (this.bombElapsed > BOMB_SPAWN_INTERVAL) {
+  updateBombs() {
+    this.bombTicks += 1;
+    if (this.bombTicks > BOMB_SPAWN_TICKS) {
       this.generateBombs();
-      this.bombElapsed = 0;
+      this.bombTicks = 0;
     }
-    if (this.bombs.length && this.bombElapsed > BOMB_LIFETIME) {
+    if (this.bombs.length && this.bombTicks > BOMB_LIFETIME_TICKS) {
       this.bombs = [];
     }
   }
 
-  updateEffects(deltaTime) {
+  updateEffects() {
     let speedChanged = false;
     for (const name of Object.keys(this.effects)) {
       if (this.effects[name] <= 0) {
         continue;
       }
-      this.effects[name] = Math.max(0, this.effects[name] - deltaTime);
+      this.effects[name] -= 1;
       if (this.effects[name] === 0) {
         speedChanged = true;
         this.emit("effectEnd", { effect: name });
@@ -394,29 +413,44 @@ export class Game {
     }
   }
 
+  // Turns real elapsed time into whole ticks; leftover time waits for the next frame
   update(deltaTime) {
+    if (this.state !== "PLAYING") {
+      this.accumulator = 0;
+      return;
+    }
+    this.accumulator += deltaTime;
+    let steps = 0;
+    while (this.accumulator >= TICK_SECONDS && this.state === "PLAYING") {
+      this.accumulator -= TICK_SECONDS;
+      this.step();
+      steps += 1;
+      if (steps >= MAX_STEPS_PER_UPDATE) {
+        // A long stall (tab in the background, slow device): drop the backlog
+        this.accumulator = 0;
+      }
+    }
+  }
+
+  // One fixed 1/60 s step of the game
+  step() {
     if (this.state !== "PLAYING") {
       return;
     }
+    this.tick += 1;
     if (this.countdown > 0) {
-      const stepLength = COUNTDOWN_DURATION / 3;
-      const before = Math.ceil(this.countdown / stepLength);
-      this.countdown = Math.max(0, this.countdown - deltaTime);
-      const after = Math.ceil(this.countdown / stepLength);
+      const before = Math.ceil(this.countdown / COUNTDOWN_STEP_TICKS);
+      this.countdown -= 1;
+      const after = Math.ceil(this.countdown / COUNTDOWN_STEP_TICKS);
       if (after !== before) {
         this.emit(after === 0 ? "go" : "tick");
       }
       return;
     }
-    this.clock += deltaTime;
-    if (this.clock - this.lastMoveTime >= this.secondsPerCell) {
+    this.moveTimer += 1;
+    if (this.moveTimer >= this.ticksPerCell) {
+      this.moveTimer = 0;
       this.move();
-      // Steps keep a fixed rhythm instead of drifting with frame timing,
-      // but a very late frame doesn't trigger a burst of catch-up steps
-      this.lastMoveTime += this.secondsPerCell;
-      if (this.clock - this.lastMoveTime >= this.secondsPerCell) {
-        this.lastMoveTime = this.clock;
-      }
       if (this.state !== "PLAYING") {
         return;
       }
@@ -424,9 +458,9 @@ export class Game {
         this.generateFood();
       }
     }
-    this.updateBombs(deltaTime);
-    this.updateEffects(deltaTime);
-    this.updatePendingObstacles(deltaTime);
+    this.updateBombs();
+    this.updateEffects();
+    this.updatePendingObstacles();
   }
 
   // Ghost lets the snake smash through one block or bomb
@@ -443,11 +477,11 @@ export class Game {
 
   applyPowerUp(type, head) {
     if (type === "star") {
-      this.effects.doublePoints = EFFECT_DURATIONS.doublePoints;
+      this.effects.doublePoints = EFFECT_TICKS.doublePoints;
     } else if (type === "slow") {
-      this.effects.slow = EFFECT_DURATIONS.slow;
+      this.effects.slow = EFFECT_TICKS.slow;
     } else if (type === "ghost") {
-      this.effects.ghost = EFFECT_DURATIONS.ghost;
+      this.effects.ghost = EFFECT_TICKS.ghost;
     } else if (type === "shrink") {
       const removed = this.snake.splice(Math.max(1, this.snake.length - SHRINK_SEGMENTS));
       this.emit("shrink", { positions: removed });
@@ -532,13 +566,22 @@ export class Game {
     this.emit(won ? "win" : "gameOver", { position });
   }
 
+  // Restarts the countdown; recorded, because the countdown is part of the game's timeline
+  resume() {
+    if (this.isFinished()) {
+      return false;
+    }
+    this.state = "PLAYING";
+    this.countdown = COUNTDOWN_TICKS;
+    this.inputs.push([this.tick, 0, 0]);
+    return true;
+  }
+
   togglePause() {
     if (this.state === "PLAYING") {
       this.state = "PAUSED";
     } else if (this.state === "PAUSED") {
-      // Resuming gives the player a countdown before the snake moves again
-      this.state = "PLAYING";
-      this.countdown = COUNTDOWN_DURATION;
+      this.resume();
     }
   }
 
@@ -554,7 +597,7 @@ export class Game {
 
   // How far the snake has glided from its previous cells toward its current ones
   moveProgress() {
-    return Math.max(0, Math.min(1, (this.clock - this.lastMoveTime) / this.secondsPerCell));
+    return Math.max(0, Math.min(1, (this.moveTimer + this.accumulator / TICK_SECONDS) / this.ticksPerCell));
   }
 
   drawnSnake() {
@@ -599,4 +642,46 @@ export class Game {
     }
     return null;
   }
+}
+
+// Re-plays a finished game from its seed and recorded inputs. The leaderboard server
+// trusts only the score this computes, never a score sent by a player.
+export function replayGame({ difficulty, mode, seed, inputs, finalTick }) {
+  if (!DIFFICULTIES[difficulty] || !Number.isInteger(seed) || seed < 0 || seed > 0xffffffff ||
+      !Number.isInteger(finalTick) || finalTick < 1 || finalTick > MAX_GAME_TICKS || !Array.isArray(inputs)) {
+    return { ok: false, reason: "invalid game" };
+  }
+  // Every input must be [tick, dx, dy] with whole numbers in range, in time order
+  let lastTick = 0;
+  for (const input of inputs) {
+    if (!Array.isArray(input) || input.length !== 3 || !input.every(Number.isInteger) ||
+        input[0] < lastTick || input[0] > finalTick || Math.abs(input[1]) > 1 || Math.abs(input[2]) > 1) {
+      return { ok: false, reason: "invalid inputs" };
+    }
+    lastTick = input[0];
+  }
+  const game = new Game(difficulty, seededRandom(seed), mode);
+  let index = 0;
+  while (true) {
+    while (index < inputs.length && inputs[index][0] === game.tick) {
+      const [, dx, dy] = inputs[index];
+      index += 1;
+      const accepted = dx === 0 && dy === 0 ? game.resume() : game.queueDirection([dx, dy]);
+      if (!accepted) {
+        return { ok: false, reason: "input does not match the game" };
+      }
+    }
+    if (game.isFinished() || game.tick >= finalTick) {
+      break;
+    }
+    game.step();
+    game.events.length = 0;
+  }
+  if (index !== inputs.length) {
+    return { ok: false, reason: "inputs after the game ended" };
+  }
+  if (!game.isFinished() || game.tick !== finalTick) {
+    return { ok: false, reason: "game did not end where claimed" };
+  }
+  return { ok: true, score: game.score, state: game.state, tick: game.tick, level: game.level, apples: game.applesEaten };
 }

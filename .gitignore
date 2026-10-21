@@ -10,3 +10,12 @@ OpenGL/
 
 # Local editor and preview settings
 .claude/
+
+# Secrets: never commit these (.env.example is the safe template)
+.env
+.env.*
+!.env.example
+
+# Node and Vercel
+node_modules/
+.vercel/

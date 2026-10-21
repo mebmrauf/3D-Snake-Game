@@ -1,20 +1,11 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
-  Game, GRID_SIZE, DIFFICULTIES, COUNTDOWN_DURATION, OBSTACLE_FADE_IN, EFFECT_DURATIONS, POWER_UPS,
-  getArrowDirections, freeCellsConnected, keyOf, seededRandom as dailyRandom, dailySeed,
+  Game, GRID_SIZE, DIFFICULTIES, COUNTDOWN_TICKS, OBSTACLE_FADE_TICKS, EFFECT_TICKS, POWER_UPS, TICKS_PER_SECOND,
+  getArrowDirections, freeCellsConnected, keyOf, seededRandom, dailySeed, replayGame,
 } from "../../web/js/logic.js";
 
 const RIGHT = [1, 0], LEFT = [-1, 0], UP = [0, 1], DOWN = [0, -1];
-
-// Small seeded random so obstacle layouts are reproducible
-function seededRandom(seed) {
-  let value = seed;
-  return () => {
-    value = (value * 1664525 + 1013904223) % 4294967296;
-    return value / 4294967296;
-  };
-}
 
 let game;
 
@@ -50,6 +41,13 @@ test("a direct reverse is ignored", () => {
   assert.equal(game.queueDirection(LEFT), false);
   game.move();
   assert.deepEqual(game.snake[0], [6, 5]);
+});
+
+test("only single-cell directions are accepted", () => {
+  setSnake([[5, 5]], RIGHT);
+  assert.equal(game.queueDirection([1, 1]), false);
+  assert.equal(game.queueDirection([0, 2]), false);
+  assert.equal(game.queueDirection([0.5, 0]), false);
 });
 
 test("first-person turns are relative to the heading", () => {
@@ -103,6 +101,17 @@ test("power-ups never spawn on the food", () => {
   }
 });
 
+test("a new game starts with a long clear lane ahead", () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    const freshGame = new Game("HARD", seededRandom(seed));
+    const [headX, headY] = freshGame.snake[0];
+    for (let i = 1; i <= 7; i++) {
+      const cell = [(headX + i) % GRID_SIZE, headY];
+      assert.ok(!freshGame.obstacles.some(([x, y]) => x === cell[0] && y === cell[1]));
+    }
+  }
+});
+
 test("obstacles respect the safe zone and never wall off the board", () => {
   for (let i = 0; i < 30; i++) {
     setSnake([[GRID_SIZE - 1, 3]], RIGHT);
@@ -118,30 +127,23 @@ test("obstacles respect the safe zone and never wall off the board", () => {
   }
 });
 
-test("a new game starts with a long clear lane ahead", () => {
-  for (let seed = 1; seed <= 30; seed++) {
-    const freshGame = new Game("HARD", seededRandom(seed));
-    const [headX, headY] = freshGame.snake[0];
-    for (let i = 1; i <= 7; i++) {
-      const cell = [(headX + i) % GRID_SIZE, headY];
-      assert.ok(!freshGame.obstacles.some(([x, y]) => x === cell[0] && y === cell[1]));
-    }
-  }
-});
-
 test("new obstacles are harmless until they turn solid", () => {
   setSnake([[5, 5]], RIGHT);
   game.generateObstacles();
   assert.equal(game.obstacles.length, 0);
   assert.ok(game.pendingObstacles.length > 0);
-  game.updatePendingObstacles(OBSTACLE_FADE_IN + 0.1);
+  for (let i = 0; i < OBSTACLE_FADE_TICKS; i++) {
+    game.updatePendingObstacles();
+  }
   assert.ok(game.obstacles.length > 0);
 });
 
 test("a fading obstacle waits while the snake is on it", () => {
   setSnake([[5, 5], [4, 5]], RIGHT);
   game.pendingObstacles = [[4, 5]];
-  game.updatePendingObstacles(OBSTACLE_FADE_IN + 0.1);
+  for (let i = 0; i < OBSTACLE_FADE_TICKS + 5; i++) {
+    game.updatePendingObstacles();
+  }
   assert.deepEqual(game.pendingObstacles, [[4, 5]]);
 });
 
@@ -156,7 +158,6 @@ test("bombs avoid the safe zone", () => {
 
 test("filling the board wins", () => {
   const row = Array.from({ length: GRID_SIZE }, (_, x) => [x, 0]);
-  game.obstacles = [];
   for (let x = 0; x < GRID_SIZE; x++) {
     for (let y = 1; y < GRID_SIZE; y++) {
       game.obstacles.push([x, y]);
@@ -184,31 +185,34 @@ test("a second star restarts the timer without stacking speed", () => {
   setSnake([[5, 5]], RIGHT);
   game.effects.doublePoints = 3;
   game.updateSpeed();
+  const boosted = game.ticksPerCell;
   game.powerUp = { type: "star", position: [6, 5] };
   game.move();
-  assert.equal(game.effects.doublePoints, EFFECT_DURATIONS.doublePoints);
-  assert.ok(Math.abs(game.secondsPerCell - DIFFICULTIES.HARD.secondsPerCell * 0.8) < 1e-9);
+  assert.equal(game.effects.doublePoints, EFFECT_TICKS.doublePoints);
+  assert.equal(game.ticksPerCell, boosted);
+  assert.ok(boosted < DIFFICULTIES.HARD.ticksPerCell);
 });
 
-test("the speed ramps up with each apple and stops at the floor", () => {
-  setSnake([[5, 5]], RIGHT);
-  const start = game.secondsPerCell;
+test("the speed ramps up with apples and stops at the floor", () => {
+  const start = game.ticksPerCell;
   game.applesEaten = 3;
   game.updateSpeed();
-  assert.ok(game.secondsPerCell < start);
+  assert.ok(game.ticksPerCell < start);
   game.applesEaten = 500;
   game.updateSpeed();
-  assert.equal(game.secondsPerCell, DIFFICULTIES.HARD.minSecondsPerCell);
+  assert.equal(game.ticksPerCell, DIFFICULTIES.HARD.minTicksPerCell);
 });
 
 test("slow motion slows the snake until it runs out", () => {
   setSnake([[5, 5]], RIGHT);
-  const normal = game.secondsPerCell;
+  const normal = game.ticksPerCell;
   game.powerUp = { type: "slow", position: [6, 5] };
   game.move();
-  assert.ok(game.secondsPerCell > normal);
-  game.updateEffects(EFFECT_DURATIONS.slow + 0.1);
-  assert.ok(Math.abs(game.secondsPerCell - normal) < 1e-9);
+  assert.ok(game.ticksPerCell > normal);
+  for (let i = 0; i < EFFECT_TICKS.slow; i++) {
+    game.updateEffects();
+  }
+  assert.equal(game.ticksPerCell, normal);
 });
 
 test("shrink removes tail segments but keeps the head", () => {
@@ -224,7 +228,7 @@ test("shrink removes tail segments but keeps the head", () => {
 
 test("ghost smashes through one block, then is used up", () => {
   setSnake([[5, 5]], RIGHT);
-  game.effects.ghost = EFFECT_DURATIONS.ghost;
+  game.effects.ghost = EFFECT_TICKS.ghost;
   game.obstacles = [[6, 5], [7, 5]];
   game.move();
   assert.equal(game.state, "PLAYING");
@@ -251,45 +255,56 @@ test("reaching 10 points is a level up", () => {
 });
 
 test("a daily challenge gives everyone the same board that day", () => {
-  const layout = (date) => new Game("MEDIUM", dailyRandom(dailySeed(date)), "daily").obstacles.map(keyOf).join();
+  const layout = (date) => new Game("MEDIUM", seededRandom(dailySeed(date)), "daily").obstacles.map(keyOf).join();
   assert.equal(layout("2026-10-21"), layout("2026-10-21"));
   assert.notEqual(layout("2026-10-21"), layout("2026-10-22"));
 });
 
 test("difficulty speeds step evenly", () => {
-  const [easy, medium, hard] = ["EASY", "MEDIUM", "HARD"].map((level) => DIFFICULTIES[level].secondsPerCell);
-  assert.ok(Math.abs((easy - medium) - (medium - hard)) < 1e-9);
+  const [easy, medium, hard] = ["EASY", "MEDIUM", "HARD"].map((level) => DIFFICULTIES[level].ticksPerCell);
+  assert.equal(easy - medium, medium - hard);
 });
 
 test("the countdown holds the snake", () => {
   setSnake([[5, 5]], RIGHT);
-  game.countdown = COUNTDOWN_DURATION;
-  game.update(COUNTDOWN_DURATION - 0.01);
-  game.update(0.005);
+  game.countdown = COUNTDOWN_TICKS;
+  for (let i = 0; i < COUNTDOWN_TICKS; i++) {
+    game.step();
+  }
   assert.deepEqual(game.snake[0], [5, 5]);
 });
 
-test("steps keep a fixed rhythm at 60 frames per second", () => {
+test("the snake moves once every ticksPerCell ticks", () => {
   setSnake([[1, 5]], RIGHT);
-  const frames = Math.round((game.secondsPerCell * 10) / (1 / 60));
-  for (let i = 0; i < frames; i++) {
-    game.update(1 / 60);
+  for (let i = 0; i < game.ticksPerCell * 9; i++) {
+    game.step();
   }
-  assert.ok(game.snake[0][0] >= 1 + 9);
+  assert.deepEqual(game.snake[0], [10, 5]);
 });
 
-test("resuming starts a countdown", () => {
+test("real time turns into fixed ticks at 60 per second", () => {
+  setSnake([[1, 5]], RIGHT);
+  for (let i = 0; i < 60; i++) {
+    game.update(1 / 60);
+  }
+  assert.ok(Math.abs(game.tick - TICKS_PER_SECOND) <= 1);
+});
+
+test("resuming starts a countdown and is recorded", () => {
   game.togglePause();
   assert.equal(game.state, "PAUSED");
   game.togglePause();
   assert.equal(game.state, "PLAYING");
-  assert.equal(game.countdown, COUNTDOWN_DURATION);
+  assert.equal(game.countdown, COUNTDOWN_TICKS);
+  assert.deepEqual(game.inputs.at(-1), [game.tick, 0, 0]);
 });
 
 test("the snake glides between cells", () => {
   setSnake([[5, 5]], RIGHT);
-  game.update(game.secondsPerCell);
-  game.update(game.secondsPerCell / 2);
+  for (let i = 0; i < game.ticksPerCell; i++) {
+    game.step();
+  }
+  game.moveTimer = game.ticksPerCell / 2;
   const [headX] = game.drawnSnake()[0];
   assert.ok(Math.abs(headX - 5.5) < 0.05);
 });
@@ -306,7 +321,6 @@ test("arrow keys follow the nearest camera angle", () => {
 test("blocks, items and bombs never share a cell during play", () => {
   for (let seed = 1; seed <= 300; seed++) {
     const fuzzGame = new Game(["EASY", "MEDIUM", "HARD"][seed % 3], seededRandom(seed));
-    fuzzGame.countdown = 0;
     const steer = seededRandom(seed * 7 + 1);
     for (let frame = 0; frame < 3000 && fuzzGame.state === "PLAYING"; frame++) {
       if (steer() < 0.08) {
@@ -319,9 +333,6 @@ test("blocks, items and bombs never share a cell during play", () => {
       for (const item of items) {
         assert.ok(!blocks.has(keyOf(item)), `item on a block (seed ${seed}, frame ${frame})`);
       }
-      if (fuzzGame.food && fuzzGame.powerUp) {
-        assert.notEqual(keyOf(fuzzGame.food), keyOf(fuzzGame.powerUp.position));
-      }
     }
   }
 });
@@ -330,4 +341,47 @@ test("danger ahead is reported", () => {
   setSnake([[5, 5]], RIGHT);
   game.obstacles = [[7, 5]];
   assert.equal(game.dangerAhead(), "obstacle");
+});
+
+// Plays a whole game the way a browser does: uneven frame times, random steering and pauses
+function playLiveGame(seed, difficulty, mode = "classic") {
+  const liveGame = new Game(difficulty, seededRandom(seed), mode);
+  const chance = seededRandom(seed ^ 0x5bd1e995);
+  for (let frame = 0; frame < 200000 && !liveGame.isFinished(); frame++) {
+    const roll = chance();
+    if (roll < 0.06) {
+      liveGame.turn(chance() < 0.5 ? "left" : "right");
+    } else if (roll < 0.062 && liveGame.state === "PLAYING") {
+      liveGame.togglePause();
+      liveGame.update(0.5);
+      liveGame.togglePause();
+    }
+    liveGame.update(0.005 + chance() * 0.03);
+  }
+  return liveGame;
+}
+
+test("a live game replays to exactly the same score and end", () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const difficulty = ["EASY", "MEDIUM", "HARD"][seed % 3];
+    const liveGame = playLiveGame(seed, difficulty);
+    assert.ok(liveGame.isFinished());
+    const result = replayGame({ difficulty, mode: "classic", seed, inputs: liveGame.inputs, finalTick: liveGame.tick });
+    assert.equal(result.ok, true, result.reason);
+    assert.equal(result.score, liveGame.score, `seed ${seed}`);
+    assert.equal(result.tick, liveGame.tick);
+  }
+});
+
+test("replay rejects tampered games", () => {
+  const liveGame = playLiveGame(7, "MEDIUM");
+  const base = { difficulty: "MEDIUM", mode: "classic", seed: 7, inputs: liveGame.inputs, finalTick: liveGame.tick };
+  assert.equal(replayGame(base).ok, true);
+  assert.equal(replayGame({ ...base, seed: 8 }).ok, false, "different seed");
+  assert.equal(replayGame({ ...base, finalTick: liveGame.tick + 500 }).ok, false, "claimed a longer game");
+  assert.equal(replayGame({ ...base, inputs: [...liveGame.inputs, [liveGame.tick + 1, 0, 1]] }).ok, false, "inputs after the end");
+  assert.equal(replayGame({ ...base, inputs: [[5, 2, 0]] }).ok, false, "impossible direction");
+  assert.equal(replayGame({ ...base, inputs: [[10, 0, 1], [5, 1, 0]] }).ok, false, "inputs out of order");
+  assert.equal(replayGame({ ...base, inputs: "nonsense" }).ok, false);
+  assert.equal(replayGame({ ...base, difficulty: "IMPOSSIBLE" }).ok, false);
 });

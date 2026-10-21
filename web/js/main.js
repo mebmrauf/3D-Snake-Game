@@ -1,12 +1,12 @@
 // Connects the game rules, the 3D view, the menus and the controls.
-import { Game, getArrowDirections, seededRandom, dailySeed, COUNTDOWN_DURATION } from "./logic.js";
+import { Game, getArrowDirections, seededRandom, dailySeed, COUNTDOWN_STEP_TICKS, TICKS_PER_SECOND, DAILY_DIFFICULTY } from "./logic.js";
 import { Renderer, themeForLevel } from "./render.js";
 import { Sound } from "./sound.js";
 import { tr, setLanguage, getLanguage, toLocalDigits } from "./i18n.js";
+import * as onlineScores from "./leaderboard.js";
 
 const STORAGE_PREFIX = "snake3d.";
 const SWIPE_DISTANCE = 28;
-const DAILY_DIFFICULTY = "MEDIUM";
 const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
 const canVibrate = isTouchDevice && typeof navigator.vibrate === "function";
 const POWER_UP_COLORS = { star: 0x3d8bff, slow: 0x2ed3c6, shrink: 0xb05cff, ghost: 0xffffff };
@@ -17,7 +17,11 @@ const elements = Object.fromEntries([
   "danger", "toast", "countdown", "tutorial", "tutorialIcon", "tutorialText", "menu", "instructions",
   "startButton", "dailyButton", "dailyInfo", "vibrationButton", "gameOver", "gameOverMode", "gameOverTitle",
   "gameOverReason", "finalScore", "gameOverBest", "playAgainButton", "menuButton", "pause", "resumeButton",
-  "resumeHint", "pauseMenuButton",
+  "resumeHint", "pauseMenuButton", "leaderboardButton", "submitStatus", "signInToSave",
+  "accountButton", "accountScreen", "signedOut", "signedIn", "signInTab", "signUpTab", "authForm", "nameField", "authName",
+  "authEmail", "authPassword", "passwordHint", "authSubmit", "authStatus", "accountName", "statGames", "statApples",
+  "statLevel", "statStreak", "accountBests", "accountStatus", "accountHistory", "signOutButton", "accountClose",
+  "gameOverTop", "gameOverTopList", "gameOverTopStatus", "leaderboardScreen", "leaderboardStatus", "leaderboardList", "leaderboardClose",
 ].map((id) => [id, document.getElementById(id)]));
 
 // Browser storage can be unavailable (private mode, blocked site data), so every access is guarded
@@ -67,6 +71,12 @@ let toastTimer = null;
 let gameOverTimer = null;
 let lastCountdownNumber = null;
 let swipeStart = null;
+let leaderboardOnline = false;
+let startingGame = false;
+let leaderboardBoard = "MEDIUM";
+let currentUser = null;
+let authMode = "signIn";
+let accountReturnTo = "menu";
 
 setLanguage(load("language", "en"));
 sound.muted = load("muted", false);
@@ -94,6 +104,8 @@ function themeName(level) {
 
 function applyTexts() {
   document.documentElement.lang = getLanguage();
+  updateAccountButton();
+  setText(elements.authSubmit, tr(authMode === "signUp" ? "signUp" : "signIn"));
   for (const element of document.querySelectorAll("[data-i18n]")) {
     setText(element, tr(element.dataset.i18n));
   }
@@ -201,16 +213,49 @@ function setPlayingLayout(isPlaying) {
   }
 }
 
-function startGame(mode = "classic") {
+function setStartButtonsBusy(busy) {
+  for (const button of [elements.startButton, elements.dailyButton, elements.playAgainButton]) {
+    button.disabled = busy;
+    button.setAttribute("aria-busy", String(busy));
+  }
+}
+
+async function startGame(mode = "classic") {
+  if (startingGame) {
+    return;
+  }
+  startingGame = true;
   sound.unlock();
   clearTimeout(gameOverTimer);
-  if (mode === "daily") {
-    const date = todayText();
-    game = new Game(DAILY_DIFFICULTY, seededRandom(dailySeed(date)), "daily");
-    game.date = date;
-  } else {
-    game = new Game(difficulty);
+  setStartButtonsBusy(true);
+  const level = mode === "daily" ? DAILY_DIFFICULTY : difficulty;
+  // Online, the server picks the seed so it can replay and verify the score later;
+  // offline (or on GitHub Pages) the game picks its own and scores stay on this device
+  let run = null;
+  if (leaderboardOnline) {
+    try {
+      run = await onlineScores.startRun(mode, level);
+    } catch {
+      run = null;
+    }
   }
+  let date = todayText();
+  let seed;
+  if (run) {
+    seed = run.seed;
+    date = run.date;
+  } else if (mode === "daily") {
+    seed = dailySeed(date);
+  } else {
+    seed = crypto.getRandomValues(new Uint32Array(1))[0];
+  }
+  game = new Game(level, seededRandom(seed), mode);
+  game.date = date;
+  game.run = run;
+  elements.submitStatus.classList.add("hidden");
+  elements.signInToSave.classList.add("hidden");
+  startingGame = false;
+  setStartButtonsBusy(false);
   isNewHighScore = false;
   lastCountdownNumber = null;
   tutorialStep = load("tutorialDone", false) ? null : "steer";
@@ -305,12 +350,286 @@ function finishGame(won) {
   elements.danger.classList.add("hidden");
   elements.countdown.classList.add("hidden");
   elements.tutorial.classList.add("hidden");
+  // Signed-in players' games are saved right away, even if they start another game quickly
+  if (game.run && currentUser) {
+    saveGameToAccount();
+  }
   // A short beat so the crash or win can be seen before the menu covers it
   gameOverTimer = setTimeout(() => {
     fillGameOverScreen();
+    prepareOnlineScores();
     elements.gameOver.classList.remove("hidden");
     elements.playAgainButton.focus({ preventScroll: true });
   }, won ? 600 : 900);
+}
+
+// The same rule the server uses: 1-16 letters (any language), numbers, spaces, _ . -
+function cleanPlayerName(value) {
+  const name = value.normalize("NFC").replace(/\s+/g, " ").trim();
+  const length = [...name].length;
+  return length >= 1 && length <= 16 && /^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N} _.-]*$/u.test(name) ? name : null;
+}
+
+function showSubmitStatus(text, kind = "") {
+  setText(elements.submitStatus, text);
+  elements.submitStatus.className = `submit-status ${kind}`;
+}
+
+// Fills a list with the top scores. Names are set as text, never as HTML.
+async function showTopScores(board, list, statusElement) {
+  list.replaceChildren();
+  setText(statusElement, tr("loading"));
+  try {
+    const { scores } = await onlineScores.topScores(board);
+    list.replaceChildren(...scores.map(({ name, score }) => {
+      const item = document.createElement("li");
+      const nameElement = document.createElement("span");
+      nameElement.className = "name";
+      nameElement.textContent = name;
+      const scoreElement = document.createElement("span");
+      scoreElement.className = "points";
+      scoreElement.textContent = toLocalDigits(score);
+      item.append(nameElement, scoreElement);
+      return item;
+    }));
+    setText(statusElement, scores.length ? "" : tr("leaderboardEmpty"));
+  } catch {
+    setText(statusElement, tr("leaderboardError"));
+  }
+}
+
+function prepareOnlineScores() {
+  elements.gameOverTop.classList.toggle("hidden", !game.run);
+  if (!game.run) {
+    return;
+  }
+  showTopScores(game.run.board, elements.gameOverTopList, elements.gameOverTopStatus);
+  if (!game.run.submitted && !game.run.saving) {
+    if (currentUser) {
+      saveGameToAccount();
+    } else {
+      elements.submitStatus.classList.add("hidden");
+      elements.signInToSave.classList.remove("hidden");
+    }
+  }
+}
+
+// Saves the finished game to the signed-in player's account; the server replays it to check the score
+async function saveGameToAccount() {
+  const finishedGame = game;
+  if (!finishedGame || !finishedGame.run || finishedGame.run.submitted || finishedGame.run.saving) {
+    return;
+  }
+  finishedGame.run.saving = true;
+  elements.signInToSave.classList.add("hidden");
+  showSubmitStatus(tr("saving"));
+  try {
+    const result = await onlineScores.submitScore({
+      runId: finishedGame.run.runId, inputs: finishedGame.inputs, finalTick: finishedGame.tick, score: finishedGame.score,
+    });
+    finishedGame.run.submitted = true;
+    if (game !== finishedGame) {
+      return;
+    }
+    const message = result.rank ? tr("savedRank", { rank: result.rank }) : tr("savedNoRank");
+    const isPersonalBest = result.personalBest && result.score > 0;
+    showSubmitStatus(isPersonalBest ? `${message} · ${tr("personalBest")}` : message, "success");
+    if (isPersonalBest) {
+      sound.play("levelUp");
+    }
+    showTopScores(result.board, elements.gameOverTopList, elements.gameOverTopStatus);
+  } catch (error) {
+    if (game !== finishedGame) {
+      return;
+    }
+    const status = error && error.status;
+    if (status === 401) {
+      // The session ended (signed out elsewhere or expired): offer to sign in again
+      currentUser = null;
+      updateAccountButton();
+      elements.submitStatus.classList.add("hidden");
+      elements.signInToSave.classList.remove("hidden");
+    } else if ([404, 409, 410, 422].includes(status)) {
+      showSubmitStatus(tr("submitRejected"), "error");
+    } else {
+      showSubmitStatus(tr("submitFailed"), "error");
+    }
+  } finally {
+    finishedGame.run.saving = false;
+  }
+}
+
+function updateAccountButton() {
+  elements.accountButton.classList.toggle("hidden", !leaderboardOnline);
+  setText(elements.accountButton, currentUser ? `👤 ${currentUser.name}` : tr("accountButtonGuest"));
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const signingUp = mode === "signUp";
+  elements.signInTab.classList.toggle("selected", !signingUp);
+  elements.signUpTab.classList.toggle("selected", signingUp);
+  elements.signInTab.setAttribute("aria-selected", String(!signingUp));
+  elements.signUpTab.setAttribute("aria-selected", String(signingUp));
+  elements.nameField.classList.toggle("hidden", !signingUp);
+  elements.passwordHint.classList.toggle("hidden", !signingUp);
+  elements.authName.required = signingUp;
+  elements.authPassword.autocomplete = signingUp ? "new-password" : "current-password";
+  setText(elements.authSubmit, tr(signingUp ? "signUp" : "signIn"));
+  setText(elements.authStatus, "");
+}
+
+function renderAccount() {
+  elements.signedOut.classList.toggle("hidden", Boolean(currentUser));
+  elements.signedIn.classList.toggle("hidden", !currentUser);
+  if (currentUser) {
+    setText(elements.accountName, `👤 ${currentUser.name}`);
+    loadAccount();
+  } else {
+    setAuthMode(authMode);
+  }
+}
+
+function boardLabel(board) {
+  return board.startsWith("DAILY-") ? tr("dailyShort", { date: board.slice(6) }) : tr(`difficulty_${board}`);
+}
+
+async function loadAccount() {
+  for (const stat of [elements.statGames, elements.statApples, elements.statLevel, elements.statStreak]) {
+    setText(stat, "–");
+  }
+  elements.accountBests.replaceChildren();
+  elements.accountHistory.replaceChildren();
+  setText(elements.accountStatus, tr("loading"));
+  try {
+    const { stats, bests, history } = await onlineScores.myAccount();
+    setText(elements.statGames, toLocalDigits(stats.games));
+    setText(elements.statApples, toLocalDigits(stats.apples));
+    setText(elements.statLevel, toLocalDigits(stats.bestLevel));
+    setText(elements.statStreak, `🔥 ${toLocalDigits(stats.dailyStreak)}`);
+    elements.accountBests.replaceChildren(...["EASY", "MEDIUM", "HARD"].map((board) => {
+      const item = document.createElement("li");
+      const label = document.createElement("span");
+      label.textContent = tr(`difficulty_${board}`);
+      const best = document.createElement("strong");
+      best.textContent = toLocalDigits(bests[board] || 0);
+      item.append(label, best);
+      return item;
+    }));
+    const dateFormat = new Intl.DateTimeFormat(getLanguage() === "bn" ? "bn-BD" : undefined, { day: "numeric", month: "short" });
+    elements.accountHistory.replaceChildren(...history.map((row) => {
+      const item = document.createElement("li");
+      const text = document.createElement("span");
+      text.textContent = tr("historyRow", { board: boardLabel(row.board), score: row.score, level: row.level });
+      const date = document.createElement("span");
+      date.className = "muted";
+      date.textContent = dateFormat.format(new Date(row.playedAt));
+      item.append(text, date);
+      return item;
+    }));
+    setText(elements.accountStatus, history.length ? "" : tr("noGames"));
+  } catch (error) {
+    if (error && error.status === 401) {
+      currentUser = null;
+      updateAccountButton();
+      renderAccount();
+      return;
+    }
+    setText(elements.accountStatus, tr("accountLoadError"));
+  }
+}
+
+function openAccount(returnTo) {
+  accountReturnTo = returnTo;
+  elements.menu.classList.add("hidden");
+  elements.gameOver.classList.add("hidden");
+  elements.accountScreen.classList.remove("hidden");
+  renderAccount();
+}
+
+function closeAccount() {
+  elements.accountScreen.classList.add("hidden");
+  if (accountReturnTo === "gameOver" && game && game.isFinished()) {
+    elements.gameOver.classList.remove("hidden");
+    prepareOnlineScores();
+  } else {
+    elements.menu.classList.remove("hidden");
+  }
+}
+
+async function submitAuth(event) {
+  event.preventDefault();
+  const signingUp = authMode === "signUp";
+  const email = elements.authEmail.value.trim();
+  const password = elements.authPassword.value;
+  const name = signingUp ? cleanPlayerName(elements.authName.value) : null;
+  if (signingUp && !name) {
+    setText(elements.authStatus, tr("nameInvalid"));
+    return;
+  }
+  if (signingUp && password.length < 8) {
+    setText(elements.authStatus, tr("passwordTooShort"));
+    return;
+  }
+  elements.authSubmit.disabled = true;
+  setText(elements.authStatus, tr("signingIn"));
+  try {
+    if (signingUp) {
+      await onlineScores.signUp({ name, email, password });
+    } else {
+      await onlineScores.signIn({ email, password });
+    }
+    const user = await onlineScores.getSessionUser();
+    if (!user) {
+      // For example, Neon Auth may ask new players to confirm their email first
+      setText(elements.authStatus, tr(signingUp ? "checkEmail" : "authFailed"));
+      return;
+    }
+    currentUser = user;
+    elements.authPassword.value = "";
+    updateAccountButton();
+    sound.play("click");
+    if (accountReturnTo === "gameOver" && game && game.run && !game.run.submitted) {
+      // Signed in to save the game they just finished: go back and save it
+      closeAccount();
+    } else {
+      renderAccount();
+    }
+  } catch (error) {
+    // Neon Auth's own message (such as "Invalid email or password") when there is one
+    const message = error instanceof onlineScores.LeaderboardError && error.status < 500 ? error.message : tr("authFailed");
+    setText(elements.authStatus, message);
+  } finally {
+    elements.authSubmit.disabled = false;
+  }
+}
+
+async function signOutPlayer() {
+  try {
+    await onlineScores.signOut();
+  } catch {
+    // The session cookie is cleared on the next successful request anyway
+  }
+  currentUser = null;
+  updateAccountButton();
+  renderAccount();
+}
+
+function openLeaderboard(board = leaderboardBoard) {
+  leaderboardBoard = board;
+  for (const tab of document.querySelectorAll(".board-tab[data-board]")) {
+    const selected = tab.dataset.board === board;
+    tab.classList.toggle("selected", selected);
+    tab.setAttribute("aria-selected", String(selected));
+  }
+  elements.menu.classList.add("hidden");
+  elements.leaderboardScreen.classList.remove("hidden");
+  showTopScores(board, elements.leaderboardList, elements.leaderboardStatus);
+}
+
+function closeLeaderboard() {
+  elements.leaderboardScreen.classList.add("hidden");
+  elements.menu.classList.remove("hidden");
 }
 
 function handleGameEvents() {
@@ -391,7 +710,7 @@ function updateHud() {
   setText(elements.hudSpeed, tr("speed", { speed: (1 / game.secondsPerCell).toFixed(1) }));
   const effectLines = Object.entries(game.effects)
     .filter(([, seconds]) => seconds > 0)
-    .map(([name, seconds]) => tr(`effect_${name}`, { seconds: seconds.toFixed(1) }));
+    .map(([name, ticks]) => tr(`effect_${name}`, { seconds: (ticks / TICKS_PER_SECOND).toFixed(1) }));
   if (elements.hudEffects.childElementCount !== effectLines.length) {
     elements.hudEffects.replaceChildren(...effectLines.map(() => document.createElement("div")));
   }
@@ -402,7 +721,7 @@ function updateHud() {
   const countingDown = game.state === "PLAYING" && game.countdown > 0;
   elements.countdown.classList.toggle("hidden", !countingDown);
   if (countingDown) {
-    const number = Math.ceil(game.countdown / (COUNTDOWN_DURATION / 3));
+    const number = Math.ceil(game.countdown / COUNTDOWN_STEP_TICKS);
     if (number !== lastCountdownNumber) {
       lastCountdownNumber = number;
       setText(elements.countdown, toLocalDigits(number));
@@ -439,7 +758,19 @@ function frame(now) {
 // Keyboard
 const arrowKeys = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
 window.addEventListener("keydown", (event) => {
+  // Typing a name for the leaderboard must not steer the snake or toggle settings
+  if (event.target instanceof HTMLInputElement) {
+    return;
+  }
   sound.unlock();
+  if (event.key === "Escape" && !elements.leaderboardScreen.classList.contains("hidden")) {
+    closeLeaderboard();
+    return;
+  }
+  if (event.key === "Escape" && !elements.accountScreen.classList.contains("hidden")) {
+    closeAccount();
+    return;
+  }
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   if (arrowKeys[key]) {
     event.preventDefault();
@@ -530,6 +861,18 @@ for (const type of ["pointerup", "pointercancel"]) {
 elements.startButton.addEventListener("click", () => startGame());
 elements.dailyButton.addEventListener("click", () => startGame("daily"));
 elements.playAgainButton.addEventListener("click", () => startGame(game ? game.mode : "classic"));
+elements.signInToSave.addEventListener("click", () => openAccount("gameOver"));
+elements.accountButton.addEventListener("click", () => openAccount(game && game.isFinished() ? "gameOver" : "menu"));
+elements.accountClose.addEventListener("click", closeAccount);
+elements.signInTab.addEventListener("click", () => setAuthMode("signIn"));
+elements.signUpTab.addEventListener("click", () => setAuthMode("signUp"));
+elements.authForm.addEventListener("submit", submitAuth);
+elements.signOutButton.addEventListener("click", signOutPlayer);
+elements.leaderboardButton.addEventListener("click", () => openLeaderboard());
+elements.leaderboardClose.addEventListener("click", closeLeaderboard);
+for (const tab of document.querySelectorAll(".board-tab[data-board]")) {
+  tab.addEventListener("click", () => openLeaderboard(tab.dataset.board));
+}
 elements.menuButton.addEventListener("click", showMenu);
 elements.pauseMenuButton.addEventListener("click", showMenu);
 elements.resumeButton.addEventListener("click", togglePause);
@@ -568,4 +911,13 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
 renderer.resize();
 applyTexts();
 document.body.classList.remove("loading");
+// The leaderboard only appears where its API exists (on Vercel, not on GitHub Pages)
+onlineScores.isAvailable().then(async (available) => {
+  leaderboardOnline = available;
+  elements.leaderboardButton.classList.toggle("hidden", !available);
+  if (available) {
+    currentUser = await onlineScores.getSessionUser();
+  }
+  updateAccountButton();
+});
 requestAnimationFrame(frame);

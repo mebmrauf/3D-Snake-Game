@@ -1,6 +1,6 @@
 // Draws the game with Three.js. Reads game state but never changes it.
 import * as THREE from "three";
-import { GRID_SIZE, OBSTACLE_FADE_IN } from "./logic.js";
+import { GRID_SIZE, OBSTACLE_FADE_TICKS } from "./logic.js";
 
 const CELL = 40;
 const HALF = CELL / 2;
@@ -505,7 +505,7 @@ export class Renderer {
       group.add(box, outline);
       return group;
     });
-    const growth = game ? Math.max(0.08, Math.min(1, game.pendingElapsed / OBSTACLE_FADE_IN)) : 1;
+    const growth = game ? Math.max(0.08, Math.min(1, game.pendingTicks / OBSTACLE_FADE_TICKS)) : 1;
     pending.forEach(([x, y], i) => {
       const group = this.pendingMeshes[i];
       group.scale.set(1, growth, 1);

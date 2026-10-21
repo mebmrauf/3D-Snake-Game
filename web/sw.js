@@ -1,6 +1,6 @@
 // Caches the game so it opens and plays offline after the first visit.
 // Bump the version whenever game files change, so players get the update.
-const CACHE_NAME = "snake3d-v3";
+const CACHE_NAME = "snake3d-v5";
 const APP_FILES = [
   "./",
   "index.html",
@@ -11,6 +11,7 @@ const APP_FILES = [
   "js/render.js",
   "js/sound.js",
   "js/i18n.js",
+  "js/leaderboard.js",
   "fonts/NotoSansBengali-Regular.ttf",
   "icons/icon-192.png",
   "icons/icon-512.png",
@@ -32,7 +33,8 @@ self.addEventListener("activate", (event) => {
 
 // Network first, so updates show up right away when online; the cache is the offline fallback
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") {
+  // Leaderboard requests always go to the server; scores must never come from a stale cache
+  if (event.request.method !== "GET" || new URL(event.request.url).pathname.startsWith("/api/")) {
     return;
   }
   event.respondWith(
