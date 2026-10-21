@@ -156,7 +156,7 @@ function playGame(seed, difficulty, mode = "classic", appleTarget = 3) {
     }
     game.update(1 / 60);
   }
-  return { inputs: game.inputs, finalTick: game.tick, score: game.score };
+  return { inputs: game.inputs, finalTick: game.tick, score: game.score, finished: game.isFinished() };
 }
 
 // Starts a game on the server and plays it honestly; minScore picks a game that scores
@@ -166,10 +166,12 @@ async function startAndPlay({ difficulty = "MEDIUM", mode = "classic", minScore 
     assert.equal(started.status, 200);
     const appleTarget = Number.isFinite(maxScore) ? maxScore : Math.max(minScore, 3);
     const played = playGame(started.json.seed, started.json.difficulty, mode, appleTarget);
-    if (played.score >= minScore && played.score <= maxScore) {
+    // Only finished games can be saved; the autopilot occasionally circles forever
+    if (played.finished && played.score >= minScore && played.score <= maxScore) {
       // Pretend the real time it took to play has passed
       store.runs.get(started.json.runId).ageOffset = played.finalTick / TICKS_PER_SECOND;
-      return { runId: started.json.runId, ...played };
+      const { finished, ...game } = played;
+      return { runId: started.json.runId, ...game };
     }
   }
   throw new Error("no suitable game found");

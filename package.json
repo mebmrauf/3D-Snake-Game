@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/web/",
+    "test": "node --test tests/web/*.test.mjs",
     "db:setup": "node --env-file=.env scripts/setup-db.mjs",
     "dev": "vercel dev"
   },
