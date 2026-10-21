@@ -1,0 +1,101 @@
+// English and Bangla text. Every key needs both languages.
+export const texts = {
+  title: { en: "3D Snake", bn: "৩ডি স্নেক" },
+  subtitle: { en: "Eat apples, dodge blocks and bombs, grow as long as you can.", bn: "আপেল খাও, ব্লক আর বোমা এড়াও, যত পারো লম্বা হও।" },
+  howToPlay: { en: "How to play", bn: "কীভাবে খেলবেন" },
+  keyboardSteer: { en: "Arrow keys steer the snake", bn: "অ্যারো কী দিয়ে সাপ চালান" },
+  keyboardPause: { en: "P or Space pauses, R restarts", bn: "P বা Space চাপলে বিরতি, R চাপলে আবার শুরু" },
+  keyboardView: { en: "V switches to first-person view", bn: "V চাপলে ফার্স্ট-পারসন ভিউ" },
+  keyboardCamera: { en: "A/D rotate, W/S tilt and X/Y zoom the camera", bn: "A/D ক্যামেরা ঘোরায়, W/S কাত করে, X/Y জুম করে" },
+  keyboardExtras: { en: "L switches language, M turns sound on or off", bn: "L চাপলে ভাষা বদলায়, M চাপলে শব্দ চালু বা বন্ধ হয়" },
+  touchSteer: { en: "Swipe anywhere to steer the snake", bn: "সাপ চালাতে স্ক্রিনে সোয়াইপ করুন" },
+  touchCamera: { en: "Tap ⟲ ⟳ to turn the camera", bn: "ক্যামেরা ঘোরাতে ⟲ ⟳ চাপুন" },
+  touchView: { en: "Tap 👁 for first-person view; then swipe left or right to turn", bn: "ফার্স্ট-পারসন ভিউর জন্য 👁 চাপুন; তারপর ঘুরতে বাঁয়ে বা ডানে সোয়াইপ করুন" },
+  ruleFood: { en: "Apples grow the snake and speed it up a little.", bn: "আপেল খেলে সাপ বড় হয় আর একটু দ্রুত চলে।" },
+  rulePowerUps: { en: "Every 5th apple brings a power-up: ⭐ double points, ⏳ slow motion, ✂️ shrink, 👻 ghost (smash through one block).", bn: "প্রতি ৫টি আপেলে একটি পাওয়ার-আপ আসে: ⭐ দ্বিগুণ পয়েন্ট, ⏳ ধীর গতি, ✂️ ছোট হওয়া, 👻 ভূত (একটি ব্লক ভেঙে যাওয়া)।" },
+  ruleLevels: { en: "Every 10 points is a new level in a new world.", bn: "প্রতি ১০ পয়েন্টে নতুন লেভেল, নতুন জগৎ।" },
+  ruleDanger: { en: "Avoid bombs, solid blocks and your own tail. Yellow-striped blocks are still forming and can't hurt you.", bn: "বোমা, শক্ত ব্লক আর নিজের লেজ এড়িয়ে চলুন। হলুদ-ডোরাকাটা ব্লক এখনো তৈরি হচ্ছে, ক্ষতি করে না।" },
+  selectDifficulty: { en: "Difficulty", bn: "কঠিনতা" },
+  difficulty_EASY: { en: "Easy", bn: "সহজ" },
+  difficulty_MEDIUM: { en: "Medium", bn: "মাঝারি" },
+  difficulty_HARD: { en: "Hard", bn: "কঠিন" },
+  best: { en: "Best {score}", bn: "সেরা {score}" },
+  startGame: { en: "Start Game", bn: "খেলা শুরু" },
+  dailyChallenge: { en: "📅 Daily Challenge", bn: "📅 দৈনিক চ্যালেঞ্জ" },
+  dailyInfo: { en: "Same board for everyone today · Best {score}", bn: "আজ সবার জন্য একই বোর্ড · সেরা {score}" },
+  dailyMode: { en: "Daily challenge", bn: "দৈনিক চ্যালেঞ্জ" },
+  dailyGameOver: { en: "Daily challenge · {date}", bn: "দৈনিক চ্যালেঞ্জ · {date}" },
+  vibrationOn: { en: "📳 Vibration on", bn: "📳 কম্পন চালু" },
+  vibrationOff: { en: "📴 Vibration off", bn: "📴 কম্পন বন্ধ" },
+  tutorialSteerTouch: { en: "Swipe in any direction to steer", bn: "যেকোনো দিকে সোয়াইপ করে সাপ চালান" },
+  tutorialSteerKeys: { en: "Press an arrow key to steer", bn: "সাপ চালাতে একটি অ্যারো কী চাপুন" },
+  tutorialEat: { en: "Now grab the apple 🍎", bn: "এবার আপেলটি খান 🍎" },
+  level: { en: "Level {level} · {theme}", bn: "লেভেল {level} · {theme}" },
+  theme_meadow: { en: "Meadow", bn: "তৃণভূমি" },
+  theme_desert: { en: "Desert", bn: "মরুভূমি" },
+  theme_ice: { en: "Ice", bn: "বরফ" },
+  theme_night: { en: "Night", bn: "রাত" },
+  theme_lava: { en: "Lava", bn: "লাভা" },
+  theme_space: { en: "Space", bn: "মহাকাশ" },
+  playAgain: { en: "Play Again", bn: "আবার খেলুন" },
+  menu: { en: "Menu", bn: "মেনু" },
+  resume: { en: "Resume", bn: "চালিয়ে যান" },
+  paused: { en: "Paused", bn: "বিরতি" },
+  resumeHint: { en: "Press P or Space to resume", bn: "চালাতে P অথবা Space চাপুন" },
+  thirdPersonView: { en: "Third-person view", bn: "থার্ড-পারসন ভিউ" },
+  firstPersonView: { en: "First-person view", bn: "ফার্স্ট-পারসন ভিউ" },
+  score: { en: "Score {score}", bn: "স্কোর {score}" },
+  highScore: { en: "Best {score}", bn: "সেরা {score}" },
+  difficulty: { en: "Difficulty: {level}", bn: "কঠিনতা: {level}" },
+  speed: { en: "Speed: {speed} cells/s", bn: "গতি: {speed} ঘর/সেকেন্ড" },
+  effect_doublePoints: { en: "⭐ Double points {seconds}s", bn: "⭐ দ্বিগুণ পয়েন্ট {seconds} সেকেন্ড" },
+  effect_slow: { en: "⏳ Slow motion {seconds}s", bn: "⏳ ধীর গতি {seconds} সেকেন্ড" },
+  effect_ghost: { en: "👻 Ghost {seconds}s", bn: "👻 ভূত {seconds} সেকেন্ড" },
+  gameOver: { en: "Game Over", bn: "খেলা শেষ" },
+  youWin: { en: "You Win!", bn: "আপনি জিতেছেন!" },
+  winReason: { en: "You filled the whole board!", bn: "আপনি পুরো বোর্ড ভরে ফেলেছেন!" },
+  cause_obstacle: { en: "You crashed into a block.", bn: "আপনি ব্লকে ধাক্কা খেয়েছেন।" },
+  cause_bomb: { en: "Boom! You hit a bomb.", bn: "বুম! বোমায় লেগেছে।" },
+  cause_self: { en: "You bit your own tail.", bn: "নিজের লেজে কামড় দিয়েছেন।" },
+  finalScore: { en: "Score: {score}", bn: "স্কোর: {score}" },
+  newHighScore: { en: "🏆 New best score!", bn: "🏆 নতুন সেরা স্কোর!" },
+  dangerObstacle: { en: "Block ahead!", bn: "সামনে ব্লক!" },
+  dangerBomb: { en: "Bomb ahead!", bn: "সামনে বোমা!" },
+  dangerBody: { en: "Your tail is ahead!", bn: "সামনে আপনার লেজ!" },
+  toast_star: { en: "⭐ Double points!", bn: "⭐ দ্বিগুণ পয়েন্ট!" },
+  toast_slow: { en: "⏳ Slow motion!", bn: "⏳ ধীর গতি!" },
+  toast_shrink: { en: "✂️ Shrink!", bn: "✂️ ছোট হয়ে গেছে!" },
+  toast_ghost: { en: "👻 Ghost: smash through one block", bn: "👻 ভূত: একটি ব্লক ভেঙে যেতে পারবেন" },
+  toastGhostSave: { en: "💥 Ghost smash!", bn: "💥 ভূতের ধাক্কা!" },
+  toastLevel: { en: "🎉 Level {level}: {theme}", bn: "🎉 লেভেল {level}: {theme}" },
+  toastObstacles: { en: "New blocks rising!", bn: "নতুন ব্লক উঠছে!" },
+  toastBombs: { en: "💣 Bombs! Watch out", bn: "💣 বোমা! সাবধান" },
+  languageButton: { en: "বাংলা", bn: "English" },
+  languageLabel: { en: "Switch language to Bangla", bn: "ভাষা ইংরেজিতে বদলান" },
+  soundLabel: { en: "Sound on or off", bn: "শব্দ চালু বা বন্ধ" },
+  viewLabel: { en: "Switch camera view", bn: "ক্যামেরা ভিউ বদলান" },
+  pauseLabel: { en: "Pause", bn: "বিরতি" },
+  rotateLeftLabel: { en: "Rotate camera left", bn: "ক্যামেরা বাঁয়ে ঘোরান" },
+  rotateRightLabel: { en: "Rotate camera right", bn: "ক্যামেরা ডানে ঘোরান" },
+};
+
+const banglaDigits = "০১২৩৪৫৬৭৮৯";
+let language = "en";
+
+export function setLanguage(newLanguage) {
+  language = newLanguage === "bn" ? "bn" : "en";
+}
+
+export function getLanguage() {
+  return language;
+}
+
+export function toLocalDigits(value) {
+  const text = String(value);
+  return language === "bn" ? text.replace(/[0-9]/g, (digit) => banglaDigits[digit]) : text;
+}
+
+// Numbers passed in are shown with Bangla digits when the game is in Bangla
+export function tr(key, values = {}) {
+  return texts[key][language].replace(/\{(\w+)\}/g, (match, name) => toLocalDigits(values[name]));
+}

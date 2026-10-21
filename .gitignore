@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# Local high scores
+highscores.json
+
+# PyOpenGL is installed from requirements.txt; the unpacked copy isn't committed (OpenGL.zip is)
+OpenGL/
+
+# Local editor and preview settings
+.claude/

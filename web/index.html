@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="description" content="A 3D snake game you can play in any browser, on phones, tablets and computers. In English and Bangla.">
+  <meta name="theme-color" content="#2e7d4f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="3D Snake">
+  <title>3D Snake</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body class="loading">
+  <canvas id="scene" aria-label="Game board"></canvas>
+
+  <div id="loading" class="loading-screen" role="status">
+    <div class="logo">🐍</div>
+    <p id="loadingText">3D Snake…</p>
+  </div>
+
+  <div id="hud" class="panel hud hidden" aria-live="polite">
+    <div id="hudView" class="muted small"></div>
+    <div id="hudScore" class="score"></div>
+    <div id="hudBest" class="small"></div>
+    <div id="hudLevel" class="small level"></div>
+    <div id="hudDifficulty" class="small"></div>
+    <div id="hudSpeed" class="small"></div>
+    <div id="hudEffects" class="effects"></div>
+  </div>
+
+  <div class="toolbar">
+    <button id="languageButton" class="chip" type="button"></button>
+    <button id="soundButton" class="icon-button" type="button">🔊</button>
+    <button id="viewButton" class="icon-button hidden" type="button">👁</button>
+    <button id="pauseButton" class="icon-button hidden" type="button">⏸</button>
+  </div>
+
+  <div id="cameraButtons" class="camera-buttons hidden">
+    <button id="rotateLeft" class="icon-button" type="button">⟲</button>
+    <button id="rotateRight" class="icon-button" type="button">⟳</button>
+  </div>
+
+  <div id="danger" class="danger hidden" role="alert"></div>
+  <div id="toast" class="toast hidden"></div>
+  <div id="countdown" class="countdown hidden"></div>
+
+  <div id="tutorial" class="tutorial hidden" aria-live="polite">
+    <div id="tutorialIcon" class="tutorial-icon"></div>
+    <div id="tutorialText"></div>
+  </div>
+
+  <section id="menu" class="overlay">
+    <div class="panel dialog">
+      <div class="logo">🐍</div>
+      <h1 data-i18n="title"></h1>
+      <p class="subtitle" data-i18n="subtitle"></p>
+      <h2 data-i18n="howToPlay"></h2>
+      <ul id="instructions" class="instructions"></ul>
+      <h2 data-i18n="selectDifficulty"></h2>
+      <div class="difficulties">
+        <button class="difficulty" type="button" data-difficulty="EASY"><span class="name"></span><span class="best"></span></button>
+        <button class="difficulty" type="button" data-difficulty="MEDIUM"><span class="name"></span><span class="best"></span></button>
+        <button class="difficulty" type="button" data-difficulty="HARD"><span class="name"></span><span class="best"></span></button>
+      </div>
+      <button id="startButton" class="primary" type="button" data-i18n="startGame"></button>
+      <button id="dailyButton" class="secondary daily" type="button">
+        <span data-i18n="dailyChallenge"></span>
+        <span id="dailyInfo" class="daily-info"></span>
+      </button>
+      <button id="vibrationButton" class="chip vibration hidden" type="button"></button>
+    </div>
+  </section>
+
+  <section id="gameOver" class="overlay hidden">
+    <div class="panel dialog compact">
+      <p id="gameOverMode" class="muted small"></p>
+      <h1 id="gameOverTitle"></h1>
+      <p id="gameOverReason" class="subtitle"></p>
+      <p id="finalScore" class="final-score"></p>
+      <p id="gameOverBest" class="muted"></p>
+      <div class="actions">
+        <button id="playAgainButton" class="primary" type="button" data-i18n="playAgain"></button>
+        <button id="menuButton" class="secondary" type="button" data-i18n="menu"></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="pause" class="overlay dim hidden">
+    <div class="pause-content">
+      <h1 data-i18n="paused"></h1>
+      <button id="resumeButton" class="primary" type="button" data-i18n="resume"></button>
+      <p id="resumeHint" class="hint" data-i18n="resumeHint"></p>
+      <button id="pauseMenuButton" class="secondary" type="button" data-i18n="menu"></button>
+    </div>
+  </section>
+</body>
+</html>
